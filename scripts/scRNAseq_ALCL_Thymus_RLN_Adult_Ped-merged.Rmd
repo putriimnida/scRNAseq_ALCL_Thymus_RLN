@@ -1,0 +1,33 @@
+---
+title: "scRNAseq_ALCL_Thymus_RLN_Adult_Ped-merged"
+author: "Putri Ramadani"
+date: "2025-05-28"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+# Load necessary library
+```{r}
+library(Seurat)
+library(pheatmap)
+library(harmony)
+library(ggrepel)
+library(DESeq2)
+library(SoupX)
+```
+```{r}
+sessionInfo()
+```
+# Data Import & Seurat Object Creation
+```{r}
+setseed(123)
+
+setwd()
+
+```
+
