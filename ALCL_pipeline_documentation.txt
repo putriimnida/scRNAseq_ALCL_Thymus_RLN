@@ -1,0 +1,13 @@
+LOGIN:
+ssh t138390uhn@h4huhnlogin1.uhnresearch.ca
+pw: Adhiguna21!
+home directory: /cluster/home/t138390uhn
+
+Cluster
+salloc --time=2:00:00 --mem=4G --cpus-per-task=1
+ls /cluster/projects/kridelgroup
+ls /cluster/projects/kridelgroup/ALCL
+ls /cluster/projects/kridelgroup/ALCL/ALCL_CosMx
+ls/cluster/projects/aokigroup
+ls /cluster/projects/aokigroup/Oshima
+

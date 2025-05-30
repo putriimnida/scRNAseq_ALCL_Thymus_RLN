@@ -19,6 +19,9 @@ library(harmony)
 library(ggrepel)
 library(DESeq2)
 library(SoupX)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
 ```
 ```{r}
 sessionInfo()
@@ -26,8 +29,6 @@ sessionInfo()
 # Data Import & Seurat Object Creation
 ```{r}
 setseed(123)
-
-setwd()
 
 ```
 
