@@ -25,10 +25,10 @@ Control samples:
 CLC02916 -> Reactive Lymph Node
 CLC02917
 CLC03483
-CLC03510
+CLC03510 (removed due to low cell numbers)
 CLC04353
 EX01176 -> Thymus 
-EX01177
+EX01177 (missing in the cluster)
 EX01178
 EX01179
 EX01180
@@ -51,7 +51,7 @@ library(readxl)
 
 # Set working directory
 ```{r}
-setseed(12345)
+set.seed(12345)
 
 setwd('~/scRNAseq_ALCL_Thymus_RLN')
 
@@ -106,14 +106,16 @@ sc.obj[["percent.rb"]] <- PercentageFeatureSet(sc.obj, pattern = "^RP[LS]")
 
 # These figures will give you a brief overview of the qualities
 # check the distribution of nfeature(number of expressed genes), ncount(number of RNA molecues) and mt percent
-png(filename = paste0('plots/250602_vlnplot_QC_allsample.png'), width = 1500, height = 600)
+png(filename = paste0('plots/250625_vlnplot_QC_allsample.png'), width = 1500, height = 600)
 print(VlnPlot(sc.obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, group.by = 'StudyID',raster=FALSE))
 dev.off()
-# warning message: Warning: Default search for "data" layer in "RNA" assay yielded no results; utilizing "counts" layer instead.
-# This just means that the Seurat object doesn’t have a "data" slot (log-normalized data), and VlnPlot is using the "counts" slot (raw UMI counts) instead.
+# warning message: Warning: Default search for "data" layer in "RNA" assay yielded no results; utilizing "counts" layer instead. null device         1
+# violin plots show the distribution of nFeature_RNA, nCount_RNA, and percent.mt for each sample in the dataset.
+# The x-axis represents the different samples, while the y-axis shows the values for each feature.
+# The `nFeature_RNA` represents the number of unique genes detected in each cell,
+# `nCount_RNA` represents the total number of RNA molecules detected, 
+# and `percent.mt` represents the percentage of mitochondrial gene expression.
 
-# how to resolve, then rerun the violin plot 
-# sc.obj <- NormalizeData(sc.obj)
 
 #filtering high mt
 keep.mito <- sc.obj$percent.mt < 20  # keep cells with mt% < 20%
@@ -132,7 +134,7 @@ for (s in unique(sc.obj$orig.ident)) {
 qc.df <- sc.obj@meta.data
 qc.df <- cbind(qc.df, keep_nGene = keep.nGene, keep_mito = keep.mito, keep = keep.mito & keep.nGene)
 
-png(paste0("plots/250602_barPlot_before_after_qc_allsample.png"), width = 1200, height = 900)
+png(paste0("plots/250625_barPlot_before_after_qc_allsample.png"), width = 1200, height = 900)
 print(
   ggplot(qc.df, aes(x = StudyID, fill = keep)) +
     geom_bar(stat = "count", position = "dodge") +
@@ -145,11 +147,221 @@ print(
     labs(x = '', y = 'Number of Cells')
 )
 dev.off()
-
-# This will:
-# Color high-quality cells (keep = TRUE) as black
-# Color filtered-out cells (keep = FALSE) as red
+# message: null device         1
+# meaning that the plot is saved successfully
+# The bar plot shows the number of cells before and after QC filtering for each sample.
+# The `keep` variable indicates whether a cell passed the QC criteria (TRUE) or was filtered out (FALSE).
+# The colors represent the filtering status:
+# - Black: Cells that passed QC (keep = TRUE)
+# - Red: Cells that were filtered out (keep = FALSE)
 
 # Save filtered seurat object
-saveRDS(sc.obj, "data/250602_merged_scobj_qc_preprocessed.rds")
+saveRDS(sc.obj, "data/250625_merged_scobj_qc_preprocessed.rds") 
+
 ```
+
+# Data Import & Seurat Object Creation (Remove samples with low cell numbers)
+```{r}
+# Load the filtered Seurat object
+sc.obj <- readRDS("data/250625_merged_scobj_qc_preprocessed.rds")
+
+# Remove samples with low cell numbers
+# Define the minimum number of cells required for a sample to be retained
+min_cells <- 1000  # Set the threshold for minimum cells
+
+# Create a table of cell counts per sample
+cell_counts <- table(sc.obj$orig.ident)
+
+# Identify samples that meet the minimum cell count requirement
+samples_to_keep <- names(cell_counts[cell_counts >= min_cells])
+
+# Filter the Seurat object to retain only the samples that meet the criteria
+sc.obj <- subset(sc.obj, orig.ident %in% samples_to_keep)
+
+# Save the filtered Seurat object
+saveRDS(sc.obj, "data/250625_merged_scobj_qc_preprocessed_filtered.rds")
+# Create a bar plot to visualize the number of cells per sample after filtering
+png(paste0("plots/250526_barPlot_before_after_qc_allsample_RLN02removed.png"), width = 1200, height = 900)
+print(ggplot(qc.df, aes(x = StudyID, fill = keep)) +
+	geom_bar(stat = "count", position = "dodge") +
+	scale_color_manual(values = c("TRUE" = "black", "FALSE" = "orange")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 20),
+        axis.text.y = element_text(size = 20),
+        axis.title.y = element_text(size = 24),
+        legend.title = element_text(size = 24),
+        legend.text = element_text(size = 20))) +
+  labs(x = '', y = 'Number of Cells')
+dev.off()
+# warning message: Warning messages: 1: No shared levels found between `names(values)` of the manual scale and the data's colour values. 2: No shared levels found between `names(values)` of the manual scale and the data's colour values. png  2 
+
+# check the number of cells per sample after filtering
+table(sc.obj$orig.ident) # This will show the number of cells per sample after filtering
+# output:
+#   ALCL001   ALCL002   ALCL003   ALCL004   ALCL005   ALCL006   ALCL007   ALCL008 
+#     7699      5915      5846      6825      6475      7076      3219      6013 
+#  CLC02916  CLC02917  CLC03483  CLC04353   EX01176   EX01178   EX01179   EX01180 
+#     2102      1973      4768      3745      5000      2984      2733      2518 
+# UHNALCL01 UHNALCL02 UHNALCL03 UHNALCL04 
+#     4932      9421      7407      8505 
+
+# ncol(sc.obj) # This will give you the total number of cells in the filtered Seurat object
+# output: [1] 105156
+
+# to know the original number of cells before filtering, you can check the original Seurat object
+# sc.obj.original <- readRDS("data/250625_merged_scobj_qc_preprocessed.rds")
+# ncol(sc.obj.original) # This will give you the total number of cells in the original Seurat object
+# output: 105872
+
+# to check the number of cells of RLN04 sample
+# sc.obj.original$orig.ident[sc.obj.original$orig.ident == "CLC03510"]
+
+
+# How to know how many cells are removed?
+# Create a new column in the metadata to indicate whether a sample was kept or removed
+qc.df$keep <- ifelse(qc.df$StudyID %in% samples_to_keep
+                    , TRUE, FALSE)
+# Create a bar plot to visualize the number of cells per sample after filtering min 1000 cells
+png(paste0("plots/250526_barPlot_after_qc_allsample_RLN04removed.png"), width = 1200, height = 900)
+print(ggplot(qc.df, aes(x = StudyID, fill = keep)) +
+    geom_bar(stat = "count", position = "dodge") +
+    scale_fill_manual(values = c("TRUE" = "grey", "FALSE" = "orange")) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 20),
+          axis.text.y = element_text(size = 20),
+          axis.title.y = element_text(size = 24),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 20)) +
+    labs(x = '', y = 'Number of Cells')
+)
+dev.off()
+
+# Interpretation of the bar plot
+# The bar plot shows the number of cells per sample after filtering.
+# The `keep` variable indicates whether a sample was retained (TRUE) or removed (FALSE).
+# The colors represent the filtering status:
+# - Grey: Samples that were retained (keep = TRUE)
+# - Orange: Samples that were removed (keep = FALSE)
+```
+
+# Normalization and clustering
+```{r} 
+# load the filtered Seurat object
+sc.obj_filtered <- readRDS("data/250625_merged_scobj_qc_preprocessed_filtered.rds")
+
+# normalize the data
+sc.obj_filtered <- NormalizeData(sc.obj_filtered)
+
+# find the top variable genes
+sc.obj_filtered <- FindVariableFeatures(sc.obj_filtered, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+# visualize the top variable genes
+top10 <- head(VariableFeatures(sc.obj_filtered), 10)
+png(filename = paste0('figures/250625_top10_variable_genes.png'), width = 800, height = 600)
+plot <- VariableFeaturePlot(sc.obj_filtered)
+plot <- LabelPoints(plot = plot, points = top10, repel = TRUE, size = 5) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 20),
+    axis.text.y = element_text(size = 20),
+    axis.title.x = element_text(size = 24),
+    axis.title.y = element_text(size = 24),
+    legend.title = element_text(size = 24),
+    legend.text = element_text(size = 20)
+  ) +
+  labs(x = 'Variable Features', y = 'Log2 Variance') +
+  ggtitle('Top 10 Variable Genes')
+
+print(plot)
+dev.off()
+
+# How to get full ranked variable feature table
+# Get metadata of variable features
+hvf.info <- HVFInfo(sc.obj_filtered)
+
+# Add gene names as a column
+hvf.info$gene <- rownames(hvf.info)
+
+# Order by standardized variance (typically used for ranking)
+hvf.ranked <- hvf.info[order(-hvf.info$variance.standardized), ]
+
+# View top 10
+head(hvf.ranked, 10)
+# Save the ranked variable features to a CSV file
+write.csv(hvf.ranked, "data/all_variable_features_ranked.csv", row.names = FALSE)
+
+
+# scaling the data
+sc.obj_filtered <- ScaleData(sc.obj_filtered, verbose = FALSE)
+
+# PCA
+sc.obj_filtered <- RunPCA(sc.obj_filtered, npcs = 30, verbose = FALSE)
+
+# UMAP
+sc.obj_filtered <- RunUMAP(sc.obj_filtered, reduction = "pca", dims = 1:30, reduction.name = 'umap_GEX')
+
+# SNN
+sc.obj_clustered <- FindNeighbors(sc.obj_filtered, reduction = "pca", dims = 1:30)
+# clustering. adjust the value of resolution to have a bigger/smaller number of clusters
+# a bigger value of resolution will give more clusters, vice versa
+sc.obj_clustered <- FindClusters(sc.obj_clustered, reduction = "pca", resolution = 0.8)
+# Number of nodes: 105156
+# Number of edges: 3752985
+
+# show the clustering results in the UMAP space
+png(filename = paste0('figures/250625_umap_Seurat_clusters_before_correction.png'), width = 800, height = 600)
+DimPlot(sc.obj_clustered, label = TRUE, label.size = 10, group.by = 'seurat_clusters', reduction = 'umap_GEX', raster=FALSE)
+dev.off()
+
+# show the Samples in the UMAP space
+png(filename = paste0('figures/250625_umap_StudyID_before_correction.png'), width = 1200, height = 900)
+DimPlot(sc.obj_clustered, label = FALSE, label.size = 10, group.by = 'StudyID', reduction = 'umap_GEX', raster=FALSE) +
+  theme(legend.text = element_text(size = 30),
+        axis.title = element_text(size = 30),
+        axis.text = element_text(size = 30) )
+dev.off()
+
+# Beacause you read only Sample and StudyID from the metadata, Category1, Category2, or any other useful metadata is permanently dropped at this point.
+# Solution:
+# You can read the metadata from the original Seurat object and merge it with the filtered Seurat object.
+lib.info <- readxl::read_xlsx('metadata/lib_ALCL_Thymus_RLN.xlsx')
+colnames(lib.info)
+# Add Sample column if not present
+sc.obj_clustered$Sample <- sc.obj_clustered$orig.ident
+
+# Merge full metadata from Excel into Seurat
+meta <- sc.obj_clustered@meta.data
+meta$CellBarcode <- rownames(meta)
+
+# Use dplyr::left_join
+meta_merged <- left_join(meta, lib.info, by = "Sample")
+
+# Restore metadata
+rownames(meta_merged) <- meta_merged$CellBarcode
+meta_merged$CellBarcode <- NULL
+sc.obj_clustered@meta.data <- meta_merged
+# Now you can access Category1, Category2, or any other metadata
+
+# Plot the UMAP with the updated metadata
+# show the Category1 in the UMAP space
+png(filename = paste0('figures/250625_umap_Category_before_correction.png'), width = 1200, height = 900)
+DimPlot(sc.obj_clustered, label = TRUE, label.size = 10, group.by = 'Category1', reduction = 'umap_GEX', raster=FALSE) +
+  theme(legend.text = element_text(size = 30),
+        axis.title = element_text(size = 30),
+        axis.text = element_text(size = 30) )
+dev.off()
+
+# show the Category2 in the UMAP space
+png(filename = paste0('figures/250625_umap_Category2_before_correction.png'), width = 1200, height = 900)
+DimPlot(sc.obj_clustered, label = FALSE, label.size = 10, group.by = 'Category2', reduction = 'umap_GEX', raster=FALSE) +
+  theme(legend.text = element_text(size = 30),
+        axis.title = element_text(size = 30),
+        axis.text = element_text(size = 30) )
+dev.off()
+
+# Save the clustered Seurat object
+dir.create("data/Seurat_objects", recursive = TRUE, showWarnings = FALSE)
+save(sc.obj_clustered, file = paste0('data/Seurat_objects/sc.obj_clustered.Rdata'))
+
+```
+
+# TO-DO: 
+## Do normalization with SoupX
+## Do Batch Correction, compare with previous clustering, and save the corrected Seurat object
+## Manual cell type annotation

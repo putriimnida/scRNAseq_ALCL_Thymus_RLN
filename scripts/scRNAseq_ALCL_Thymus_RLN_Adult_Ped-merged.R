@@ -85,7 +85,7 @@ for (s in unique(sc.obj$orig.ident)) {
 qc.df <- sc.obj@meta.data
 qc.df <- cbind(qc.df, keep_nGene = keep.nGene, keep_mito = keep.mito, keep = keep.mito & keep.nGene)
 
-png(paste0("plots/250602_barPlot_before_after_qc_allsample.png"), width = 1200, height = 900)
+png(paste0("plots/250623_barPlot_before_after_qc_allsample.png"), width = 1200, height = 900)
 print(
   ggplot(qc.df, aes(x = StudyID, fill = keep)) +
     geom_bar(stat = "count", position = "dodge") +
@@ -104,6 +104,6 @@ dev.off()
 # Color filtered-out cells (keep = FALSE) as red
 
 # Save filtered seurat object
-saveRDS(sc.obj, "data/250602_merged_scobj_qc_preprocessed.rds")
+saveRDS(sc.obj, "data/250623_merged_scobj_qc_preprocessed.rds")
 
 # last updated: 2025-02-06
