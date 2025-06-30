@@ -1,13 +1,6 @@
-LOGIN:
-ssh t138390uhn@h4huhnlogin1.uhnresearch.ca
-pw: Adhiguna21!
-home directory: /cluster/home/t138390uhn
+check https://rstudio.github.io/renv/articles/renv.html 
+library(renv) # take a look at the website
 
-Cluster
-salloc --time=2:00:00 --mem=4G --cpus-per-task=1
-ls /cluster/projects/kridelgroup
-ls /cluster/projects/kridelgroup/ALCL
-ls /cluster/projects/kridelgroup/ALCL/ALCL_CosMx
-ls/cluster/projects/aokigroup
-ls /cluster/projects/aokigroup/Oshima
+check the upcoming workshop: https://share.hsforms.com/1y55bYTSKSVKVOejXnM9lIg336z0
 
+scientific collaboration: https://www.ccdatalab.org/scientific-collaboration 
