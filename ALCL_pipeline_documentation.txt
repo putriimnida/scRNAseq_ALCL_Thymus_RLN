@@ -4,3 +4,28 @@ library(renv) # take a look at the website
 check the upcoming workshop: https://share.hsforms.com/1y55bYTSKSVKVOejXnM9lIg336z0
 
 scientific collaboration: https://www.ccdatalab.org/scientific-collaboration 
+
+
+
+Running SoupX:
+Running SoupX on: ALCL001 
+Running SoupX on: ALCL002 
+Running SoupX on: ALCL003 
+Running SoupX on: ALCL004 
+Running SoupX on: ALCL005 
+Running SoupX on: ALCL006 
+Running SoupX on: ALCL007 
+Running SoupX on: ALCL008 
+Running SoupX on: UHNALCL01 
+Running SoupX on: UHNALCL02 
+Running SoupX on: UHNALCL03 
+Running SoupX on: UHNALCL04 
+Running SoupX on: CLC02916 
+Running SoupX on: CLC02917 
+Running SoupX on: CLC03483 
+Running SoupX on: CLC03510 
+Running SoupX on: CLC04353 
+Running SoupX on: EX01176 
+Running SoupX on: EX01178 
+Running SoupX on: EX01179 
+Running SoupX on: EX01180 

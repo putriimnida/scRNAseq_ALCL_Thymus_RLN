@@ -5,6 +5,8 @@ date: "2025-05-28"
 output: html_document
 ---
 
+NOTE: THIS IS A NEW SCRIPT WITH SOUPX BEFORE SEURAT OBJECT CREATION
+
 This is documentation for the script `scRNAseq_ALCL_Thymus_RLN_Adult_Ped-merged.Rmd`, which is part of the analysis pipeline for single-cell RNA sequencing data from ALCL patients. 
 The script performs data import, filtering, and normalization.
 The analysis pipeline is designed to handle multiple samples, perform quality control, and visualize the results through UMAP plots. The final output is a clustered Seurat object that can be used for further analysis and interpretation of the scRNAseq data.
@@ -34,28 +36,47 @@ EX01178
 EX01179
 EX01180
 
+This knitr chunk is used to set global options for the R Markdown document, such as whether to show code output or not.
+echo = TRUE means that the code will be shown in the output document, while echo = FALSE would hide the code.
+This sets global knitr chunk options. `echo = TRUE` ensures that code chunks will be shown in the final rendered document for reproducibility.
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-This knitr chunk is used to set global options for the R Markdown document, such as whether to show code output or not.
-echo = TRUE means that the code will be shown in the output document, while echo = FALSE would hide the code.
+
+Note: for stability and reproducibility
 
 # 1. Load Libraries & Set Up
 ```{r}
-library(Seurat)
-library(pheatmap)
-library(ggrepel)
-library(ggplot2)
-library(dplyr)
-library(tidyr)
-library(readxl)
-library(SoupX)
-library(DropletUtils)
+# Load necessary libraries for single-cell RNA-seq analysis
+library(Seurat)       # Core package for single-cell RNA-seq data analysis
+library(pheatmap)     # For creating heatmaps
+library(ggrepel)      # For better text label placement in ggplot2
+library(ggplot2)      # For data visualization
+library(dplyr)        # For data manipulation
+library(tidyr)        # For data tidying
+library(readxl)       # For reading Excel files/metadata
 
-set.seed(1234)
+# Set personal R library path (do this once before loading custom packages)
+.libPaths("~/library")
+
+# Load packages installed manually (e.g., via scp)
+library(SoupX)        # For decontamination of ambient RNA
+library(DropletUtils) # For loading raw 10X data (e.g., read10xCounts)
+# library (renv) ERROR MESSAGE: error: unable to load shared object '/cluster/home/t138390uhn/library/renv/libs/renv.so':
+ # /cluster/home/t138390uhn/library/renv/libs/renv.so: invalid ELF header
+
+
+# Set seed for reproducibility and working directory
+set.seed(12345)
 setwd('~/scRNAseq_ALCL_Thymus_RLN')
+
+# Read in library information from an Excel file
 lib.info <- read_xlsx('metadata/lib_ALCL_Thymus_RLN.xlsx')
 
+# Create directories for data and figures if they do not exist
+# "data" to store intermediate and final Seurat objects
+# "figures" to store plots and visualizations
+# Suppress warnings if they already exist
 dir.create("data", recursive = TRUE, showWarnings = FALSE)
 dir.create("figures", recursive = TRUE, showWarnings = FALSE)
 ```
@@ -63,15 +84,20 @@ dir.create("figures", recursive = TRUE, showWarnings = FALSE)
 
 # 2. SoupX Decontamination + Seurat Object Creation
 ```{r}
+# Initialize an empty Seurat object to store cleaned data from all samples
 sc.obj <- NULL
 out.dir <- "data/SoupX_outputs"
 dir.create(out.dir, recursive = TRUE, showWarnings = FALSE)
 
+# Loop over each sample to run SoupX and create cleaned Seurat objects
 for (i in 1:nrow(lib.info)) {
   i.df <- lib.info[i,]
   sample_id <- i.df$Sample
   cat("Running SoupX on:", sample_id, "\n")
 
+  # Construct paths for filtered and raw data directories
+  # The filtered directory contains the processed data, while the raw directory contains the original 10X Genomics data
+  # If the raw directory does not exist, it falls back to a predefined path
   filt.dir <- i.df$AnalysisDir
   raw.dir <- gsub("filtered_feature_bc_matrix", "raw_feature_bc_matrix", filt.dir)
   if (!dir.exists(raw.dir)) {
@@ -81,16 +107,22 @@ for (i in 1:nrow(lib.info)) {
     warning(paste("Skipping", sample_id, "- raw or filtered dir not found."))
     next
   }
-
+  # Read 10X data
   filt <- Read10X(filt.dir)
   raw <- Read10X(raw.dir)
 
-  raw <- raw[, colnames(raw) %in% colnames(filt)]
-  raw <- raw[rownames(raw) %in% rownames(filt), ]
+  # Ensure raw and filtered matrices have the same genes and cells
+  common_genes <- intersect(rownames(raw), rownames(filt))
+  common_cells <- intersect(colnames(raw), colnames(filt))
+  raw <- raw[common_genes, common_cells]
+  filt <- filt[common_genes, common_cells]
 
+  # Create SoupChannel
   sc <- SoupChannel(tod = raw, toc = filt)
 
+  # Temporary Seurat object for clustering
   tmp <- CreateSeuratObject(counts = filt, project = sample_id)
+  tmp <- RenameCells(tmp, add.cell.id = sample_id)
   tmp <- NormalizeData(tmp)
   tmp <- FindVariableFeatures(tmp)
   tmp <- ScaleData(tmp)
@@ -99,28 +131,40 @@ for (i in 1:nrow(lib.info)) {
   tmp <- FindNeighbors(tmp, dims = 1:20)
   tmp <- FindClusters(tmp, resolution = 0.5)
 
-  umap <- tmp@reductions$umap@cell.embeddings
+  # Extract cluster/UMAP and remove NA clusters
   clusters <- tmp$seurat_clusters
   names(clusters) <- gsub(paste0("^", sample_id, "_"), "", names(clusters))
+  clusters <- clusters[!is.na(clusters)]  
+  umap <- tmp@reductions$umap@cell.embeddings
   rownames(umap) <- gsub(paste0("^", sample_id, "_"), "", rownames(umap))
+  umap <- umap[names(clusters), ]
 
-  sc <- setClusters(sc, clusters)
-  sc <- setDR(sc, umap)
-  sc <- autoEstCont(sc)
+  # SoupX decontamination (ERROR)
+  sc <- setClusters(sc, clusters[!is.na(clusters)]) 
+  sc <- setDR(sc, umap[names(clusters[!is.na(clusters)]), ])  # keep UMAP matched
+  sc <- autoEstCont(sc, soupQuantile = 0.9, forceAccept = TRUE) 
   cleaned <- adjustCounts(sc)
 
+
+  # Create Seurat object from cleaned data
   cleaned.seurat <- CreateSeuratObject(counts = cleaned, project = sample_id)
   cleaned.seurat <- RenameCells(cleaned.seurat, add.cell.id = sample_id)
 
+  # Merge into combined Seurat object
   sc.obj <- if (is.null(sc.obj)) cleaned.seurat else merge(sc.obj, cleaned.seurat)
 
+  # Write cleaned matrix as 10X format
   DropletUtils:::write10xCounts(paste0(out.dir, "/", sample_id), cleaned)
 }
+
+# ERROR: Error in quantile.default(soupProf$est, soupQuantile) : 
+  missing values and NaN's not allowed if 'na.rm' is FALSE
 ```
 
 
 # 3. Add Metadata (Full)
 ```{r}
+# Read in the library information from the Excel file and merge into Seurat object
 lib.info <- read_xlsx('metadata/lib_ALCL_Thymus_RLN.xlsx')
 sc.obj$Sample <- sc.obj$orig.ident
 meta <- sc.obj@meta.data
@@ -134,9 +178,15 @@ sc.obj@meta.data <- meta_merged
 
 # 4. QC Filtering (mt% + MAD)
 ```{r}
+# Calculate the number of features (genes) and counts per cell
 sc.obj[["percent.mt"]] <- PercentageFeatureSet(sc.obj, pattern = "^MT-")
 sc.obj[["percent.rb"]] <- PercentageFeatureSet(sc.obj, pattern = "^RP[LS]")
 
+# Filter cells based on mitochondrial percentage and number of genes expressed
+# Cells with more than 20% mitochondrial genes or with an outlier number of genes expressed
+# are removed from the analysis to ensure high-quality data
+# The median and MAD (Median Absolute Deviation) are used to define outliers for the number of genes expressed
+# Cells are kept if their number of genes is within 4 MADs from the median number of genes expressed in their sample
 keep.nGene <- rep(NA, ncol(sc.obj))
 for (s in unique(sc.obj$orig.ident)) {
   s.idx <- which(sc.obj$orig.ident == s)
@@ -147,23 +197,35 @@ for (s in unique(sc.obj$orig.ident)) {
 }
 sc.obj$keep_nGene <- keep.nGene
 
+# Filter cells: low mito % and within MAD of gene features
+# This step removes cells with high mitochondrial gene expression and those with an outlier number of genes expressed
 sc.obj <- subset(sc.obj, subset = percent.mt < 20 & keep_nGene)
 
+# Exclude samples with fewer than 1000 cells post-filtering 
 cell_counts <- table(sc.obj$orig.ident)
 samples_to_keep <- names(cell_counts[cell_counts >= 1000])
 sc.obj <- subset(sc.obj, orig.ident %in% samples_to_keep)
 
-saveRDS(sc.obj, "data/250625_merged_scobj_qc_filtered_applied.rds")
+# Save the filtered Seurat object and cell counts after QC
+saveRDS(sc.obj, "data/250701_merged_scobj_qc_filtered_applied.rds")
 write.csv(as.data.frame(table(sc.obj$orig.ident)), "data/cell_counts_after_QC_applied.csv")
 ```
 
 
 # 5. Normalize, Variable Features, PCA, UMAP, Clustering
 ```{r}
+# Normalize the data, find variable features, and scale the data
+# This step prepares the data for PCA and UMAP analysis
+# Normalization adjusts the data to account for differences in sequencing depth
+# Variable features are genes that show high variability across cells, which are important for downstream analysis
+# The top 2000 variable features are selected for PCA
+# The VariableFeaturePlot function visualizes the variable features in the dataset
 sc.obj <- NormalizeData(sc.obj)
 sc.obj <- FindVariableFeatures(sc.obj, selection.method = "vst", nfeatures = 2000)
 top10 <- head(VariableFeatures(sc.obj), 10)
 
+# Plot the top 10 variable genes using VariableFeaturePlot
+# This plot shows the most variable genes in the dataset, which are important for downstream analysis
 png("figures/250625_top10_variable_genes.png", width = 800, height = 600)
 plot <- VariableFeaturePlot(sc.obj)
 plot <- LabelPoints(plot, points = top10, repel = TRUE, size = 5) +
@@ -175,11 +237,13 @@ plot <- LabelPoints(plot, points = top10, repel = TRUE, size = 5) +
 print(plot)
 dev.off()
 
+# Get information about highly variable features (HVF) and rank them by standardized variance
 hvf.info <- HVFInfo(sc.obj)
 hvf.info$gene <- rownames(hvf.info)
 hvf.ranked <- hvf.info[order(-hvf.info$variance.standardized), ]
 write.csv(hvf.ranked, "data/all_variable_features_ranked.csv", row.names = FALSE)
 
+# Scale the data, run PCA, and prepare for UMAP and clustering
 sc.obj <- ScaleData(sc.obj, verbose = FALSE)
 sc.obj <- RunPCA(sc.obj, npcs = 30, verbose = FALSE)
 sc.obj <- RunUMAP(sc.obj, reduction = "pca", dims = 1:30, reduction.name = 'umap_GEX')
@@ -190,25 +254,26 @@ sc.obj <- FindClusters(sc.obj, resolution = 0.8)
 
 # 6. UMAP Plots (Clusters, Metadata)
 ```{r}
-png("figures/250626_umap_Seurat_clusters_before_correction.png", width = 800, height = 600)
+# Plot UMAP with clusters, StudyID, Category1, and Category2
+png("figures/250701_umap_Seurat_clusters_before_correction.png", width = 800, height = 600)
 DimPlot(sc.obj, group.by = 'seurat_clusters', reduction = 'umap_GEX', label = TRUE, label.size = 10, raster=FALSE)
 dev.off()
 
-png("figures/250626_umap_StudyID_before_correction.png", width = 1200, height = 900)
+png("figures/250701_umap_StudyID_before_correction.png", width = 1200, height = 900)
 DimPlot(sc.obj, group.by = 'StudyID', reduction = 'umap_GEX', label = FALSE, label.size = 10, raster=FALSE) +
   theme(legend.text = element_text(size = 30),
         axis.title = element_text(size = 30),
         axis.text = element_text(size = 30))
 dev.off()
 
-png("figures/250626_umap_Category1_before_correction.png", width = 1200, height = 900)
+png("figures/250701_umap_Category1_before_correction.png", width = 1200, height = 900)
 DimPlot(sc.obj, group.by = 'Category1', reduction = 'umap_GEX', label = TRUE, label.size = 10, raster=FALSE) +
   theme(legend.text = element_text(size = 30),
         axis.title = element_text(size = 30),
         axis.text = element_text(size = 30))
 dev.off()
 
-png("figures/250626_umap_Category2_before_correction.png", width = 1200, height = 900)
+png("figures/250701_umap_Category2_before_correction.png", width = 1200, height = 900)
 DimPlot(sc.obj, group.by = 'Category2', reduction = 'umap_GEX', label = FALSE, label.size = 10, raster=FALSE) +
   theme(legend.text = element_text(size = 30),
         axis.title = element_text(size = 30),
@@ -223,7 +288,8 @@ dir.create("data/Seurat_objects", recursive = TRUE, showWarnings = FALSE)
 save(sc.obj, file = "data/Seurat_objects/sc.obj_clustered.Rdata")
 ```
 
-# TO-DO: 
+# TO-DO: continue with this script, use RLN and Thymus data required for SoupX from Yifan; learn the structure for ALCL SoupX
+
 ## Make a clear list of different steps and libraries used in HL Rmd and ALSF Rmd
 ## Use Raw data from RawDir, not filtered_feature_bc_matrix
 ## Use SoupX to decontaminate the raw data, then create a Seurat object

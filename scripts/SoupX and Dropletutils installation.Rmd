@@ -1,0 +1,63 @@
+---
+title: "Install SoupX and DropletUtils on UHN Cluster"
+output: html_document
+---
+
+# 1. Set personal R library
+
+In your R console or script, always set your personal library:
+
+```r
+.libPaths("~/library")
+```
+
+# 2. Download the packages locally (on your local terminal)
+```bash
+# SoupX already downloaded as SoupX_1.6.2.tar.gz
+
+# DropletUtils from Bioconductor
+curl -L -o DropletUtils_1.26.0.tar.gz https://bioconductor.org/packages/release/bioc/src/contrib/DropletUtils_1.26.0.tar.gz
+```
+
+# 3. Upload tarballs to the UHN cluster
+In your Mac terminal:
+```bash
+Copy
+Edit
+scp ~/SoupX_1.6.2.tar.gz ......
+scp ~/DropletUtils_1.26.0.tar.gz ......
+```
+
+# 4. Load R on the UHN cluster
+```bash
+module load R
+R
+```
+
+# 5. Install required dependencies
+```bash
+.libPaths("~/library")  # Set personal library path
+
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+
+BiocManager::install(c("rhdf5", "Rhdf5lib", "HDF5Array"), ask = FALSE)
+```
+
+# 6. Install packages from source (in shell, not in R)
+```bash
+R CMD INSTALL ~/SoupX_1.6.2.tar.gz --library=~/library
+R CMD INSTALL ~/DropletUtils_1.26.0.tar.gz --library=~/library
+7. Load libraries in R to confirm installation
+```
+
+# 7. Load the libraries to confirm installation
+```r
+.libPaths("~/library")
+library(SoupX)
+library(DropletUtils)
+```
+
+Done!
+You’re now ready to use SoupX and DropletUtils in your single-cell RNA-seq pipeline.
